@@ -59,6 +59,7 @@
     <Compile Include="ColorBlobDetection\ColorBlobDetector.cs" />
     <Compile Include="FaceDetect\DetectionBasedTracker.cs" />
     <Compile Include="FaceDetect\FaceDetectActivity.cs" />
+    <Compile Include="IdPhoto\IdActivity.cs" />
     <Compile Include="ImageManipulations\ImageManipulationsActivity.cs" />
     <Compile Include="MainActivity.cs" />
     <Compile Include="MixedProcessing\MixedProcessing.cs" />
@@ -89,13 +90,18 @@
       <SubType>Designer</SubType>
     </None>
     <AndroidResource Include="Resources\layout\CameraPreview.axml" />
-    <AndroidResource Include="Resources\layout\Main.axml" />
+    <AndroidResource Include="Resources\layout\Main.axml">
+      <SubType>Designer</SubType>
+    </AndroidResource>
     <AndroidResource Include="Resources\layout\Puzzle.axml" />
     <AndroidResource Include="Resources\menu\calibration.axml">
       <SubType>AndroidResource</SubType>
     </AndroidResource>
     <AndroidResource Include="Resources\layout\color_blob_detection_surface_view.axml">
       <SubType>AndroidResource</SubType>
+    </AndroidResource>
+    <AndroidResource Include="Resources\layout\IdPhoto.axml">
+      <SubType>Designer</SubType>
     </AndroidResource>
   </ItemGroup>
   <ItemGroup>

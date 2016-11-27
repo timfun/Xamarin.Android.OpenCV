@@ -6,6 +6,7 @@ using OpenCV.SDKDemo.CameraControl;
 using OpenCV.SDKDemo.CameraPreview;
 using OpenCV.SDKDemo.ColorBlobDetection;
 using OpenCV.SDKDemo.FaceDetect;
+using OpenCV.SDKDemo.IdPhoto;
 using OpenCV.SDKDemo.ImageManipulations;
 using OpenCV.SDKDemo.MixedProcessing;
 using OpenCV.SDKDemo.Puzzle;
@@ -43,6 +44,9 @@ namespace OpenCV.SDKDemo
 
             FindViewById<Button>(Resource.Id.puzzle)
                 .Click += (s, e) => StartActivity(typeof(PuzzleActivity));
+
+            FindViewById<Button>(Resource.Id.idPhoto)
+                .Click += (s, e) => StartActivity(typeof(IdActivity));
         }
     }
 }

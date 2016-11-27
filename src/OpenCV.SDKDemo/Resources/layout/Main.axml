@@ -43,4 +43,9 @@
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
         android:text="Puzzle" />
+    <Button
+        android:id="@+id/idPhoto"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:text="Id Photo" />
 </LinearLayout>
