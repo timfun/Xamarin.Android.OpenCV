@@ -60,6 +60,8 @@
     <Compile Include="FaceDetect\DetectionBasedTracker.cs" />
     <Compile Include="FaceDetect\FaceDetectActivity.cs" />
     <Compile Include="IdPhoto\IdActivity.cs" />
+    <Compile Include="IdPhoto\LabelPoint.cs" />
+    <Compile Include="IdPhoto\SharedMatting.cs" />
     <Compile Include="ImageManipulations\ImageManipulationsActivity.cs" />
     <Compile Include="MainActivity.cs" />
     <Compile Include="MixedProcessing\MixedProcessing.cs" />
