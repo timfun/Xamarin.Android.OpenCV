@@ -812,10 +812,18 @@ namespace OpenCV.SDKDemo.IdPhoto
             var w = Image.Cols();
             var h = Image.Rows();
 
+            Log.Info(Tag, $"unkonwSet count: {unknowSet.Count}");
+            var loop = 0;
             foreach (var point in unknowSet)
             {
                 var backgroundPoints = new List<Point>();
                 var foregroundPoints = new List<Point>();
+
+                loop++;
+                if (loop % 100 == 0)
+                {
+                    Log.Info(Tag, $"loop count {loop}");
+                }
 
                 angle = (int)((point.X + point.Y)*b%a);
                 for (int i = 0; i < KG; i++)

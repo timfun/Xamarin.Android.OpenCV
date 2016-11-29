@@ -83,39 +83,55 @@ namespace OpenCV.SDKDemo.IdPhoto
             }
         }
 
+        protected override void OnActivityResult(int requestCode, [GeneratedEnum] Result resultCode, Intent data)
+        {
+            base.OnActivityResult(requestCode, resultCode, data);
+
+            if (requestCode == 0 && resultCode == Result.Ok)
+            {
+                _image = BitmapFactory.DecodeStream(ContentResolver.OpenInputStream(data.Data));                
+                _imageView.SetImageBitmap(_image);
+                _raw = new Mat(_image.Width, _image.Height, CvType.Cv8uc1);
+                OpenCV.Android.Utils.BitmapToMat(_image, _raw);
+            }
+
+            if (requestCode == 1 && resultCode == Result.Ok)
+            {
+                _image  = BitmapFactory.DecodeStream(ContentResolver.OpenInputStream(data.Data));
+                _imageView.SetImageBitmap(_image);
+                _trimap = new Mat(_image.Width, _image.Height, CvType.Cv8uc1);
+                OpenCV.Android.Utils.BitmapToMat(_image, _trimap);
+            }
+        }
+
         public override bool OnOptionsItemSelected(IMenuItem item)
         {
             Log.Info(Tag, "Menu Item selected " + item);
 
             if (item == _itemPickPhoto)
             {
-                var file = "/sdcard/dcim/Camera/id.jpg";
- 
-                _image = BitmapFactory.DecodeFile(file);
-                _raw = new Mat(_image.Width, _image.Height, CvType.Cv8uc1);
-                OpenCV.Android.Utils.BitmapToMat(_image, _raw);
-
-                _imageView.SetImageBitmap(_image);
+                var imageIntent = new Intent();
+                imageIntent.SetType("image/*");
+                imageIntent.SetAction(Intent.ActionGetContent);
+                StartActivityForResult(Intent.CreateChooser(imageIntent, "Select photo"), 0);
             }
             else if (item == _itemGray)
             {
                 // 灰度图
                 _gray = new Mat(_raw.Width(), _raw.Height(), CvType.Cv8uc1);
                 Imgproc.CvtColor(_raw, _gray, Imgproc.ColorRgb2gray);
-
                 ShowImage(_gray);
             }
             else if (item == _itemThreshold)
             {
                 // 二值化
                 _threshold = new Mat(_image.Width, _image.Height, CvType.Cv8uc1);
-                Imgproc.Threshold(_gray, _threshold, 178, 255, Imgproc.ThreshBinary);
-
+                Imgproc.Threshold(_gray, _threshold, 168, 255, Imgproc.ThreshBinary);
                 ShowImage(_threshold);
             }
             else if (item == _itemFindContours)
             {
-                // 查找最大连同区域
+                // 查找最大连通区域
                 IList<MatOfPoint> contours = new JavaList<MatOfPoint>();
                 Mat hierarchy = new Mat();
                 var target = _threshold.Clone();
@@ -139,22 +155,26 @@ namespace OpenCV.SDKDemo.IdPhoto
                 var last = new JavaList<MatOfPoint>();
                 last.Add(max);
 
-                Imgproc.DrawContours(_raw, last, -1, new Scalar(255, 0, 0), -1);
+                Imgproc.DrawContours(_raw, last, -1, new Scalar(255, 0, 0));
 
                 ShowImage(_raw);
             }
             else if (item == _itemCreateTrimap)
             {
-                // 生成三元图
-
+                // 生成三元图  暂时先用生成的图替代 
+                var imageIntent = new Intent();
+                imageIntent.SetType("image/*");
+                imageIntent.SetAction(Intent.ActionGetContent);
+                StartActivityForResult(Intent.CreateChooser(imageIntent, "Select photo"), 1);
             }
             else if(item == _itemSharedMatting)
             {
                 // 扣图
+                var sharedMatting = new SharedMatting();
+                sharedMatting.SetImage(_raw);
+                sharedMatting.SetTrimap(_trimap);
+                sharedMatting.SolveAlpha();
             }
-            //{
-            //    _puzzle15.ToggleTileNumbers();
-            //}
 
             return base.OnOptionsItemSelected(item);
         }
