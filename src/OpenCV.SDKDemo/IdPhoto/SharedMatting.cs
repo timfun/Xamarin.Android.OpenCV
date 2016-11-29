@@ -44,7 +44,7 @@ namespace OpenCV.SDKDemo.IdPhoto
 
         private List<Point> unknowSet;
         private List<ScalarTuple> scalarTuples;
-        private List<FTuple> fTuples;
+        private FTuple[] fTuples;
 
         public SharedMatting()
         {
@@ -107,7 +107,7 @@ namespace OpenCV.SDKDemo.IdPhoto
 
         public void Save(string path)
         {
-            
+            // ±£´æ matte
         }
 
         private void ExpandKnown()
@@ -475,18 +475,295 @@ namespace OpenCV.SDKDemo.IdPhoto
 
         private void RefineSample()
         {
-            
+            fTuples = new FTuple[width * height +1];
+            for (int i = 0; i < height; i++)
+            {
+                for (int j = 0; j < width; j++)
+                {
+                    var c = new Scalar(Image.Get(i, j));
+                    int index = i * width + j;
+                    var gray = trimapData[i, j];
+                    if (IsBackground(gray))
+                    {
+                        fTuples[index].fore = c;
+                        fTuples[index].back = c;
+                        fTuples[index].alhpa = 0;
+                        fTuples[index].confidence = 1;
+                        alpha[i, j] = 0;
+                    }
+                    else if (IsForeground(gray))
+                    {
+                        fTuples[index].fore = c;
+                        fTuples[index].back = c;
+                        fTuples[index].alhpa = 1;
+                        fTuples[index].confidence = 1;
+                        alpha[i, j] = 255;
+                    }
+                }    
+            }
 
+            foreach (var point in unknowSet)
+            {
+                int xi = (int)point.X;
+                int yj = (int)point.Y;
+                int i1 = Math.Max(0, xi - 5);
+                int i2 = Math.Min(xi + 5, height - 1);
+                int j1 = Math.Max(0, yj - 5);
+                int j2 = Math.Min(yj + 5, width - 1);
+
+                var minvalue = new double[] {1e10, 1e10, 1e10};
+                var p = new Point[3];
+                int num = 0;
+                for (int k = i1; k <= i2; k++)
+                {
+                    for (int l = j1; l <= j2; l++)
+                    {
+                        var temp = trimapData[k, l];
+                        if (temp == 0 || temp == 255)
+                        {
+                            continue;
+                        }
+
+                        int index = unKnowIndex[k, l];
+                        var t = scalarTuples[index];
+                        if (t.flag == -1)
+                        {
+                            continue;
+                        }
+
+                        var m = ChromaticDistortion(xi, yj, t.fore, t.back);
+                        if (m > minvalue[2])
+                        {
+                            continue;
+                        }
+
+                        if (m < minvalue[0])
+                        {
+                            minvalue[2] = minvalue[1];
+                            p[2] = p[1];
+
+                            minvalue[1] = minvalue[0];
+                            p[1] = p[0];
+
+                            minvalue[0] = m;
+                            p[0].X = k;
+                            p[0].Y = l;
+
+                            num++;
+                        }
+                        else if (m < minvalue[1])
+                        {
+                            minvalue[2] = minvalue[1];
+                            p[2] = p[1];
+
+                            minvalue[1] = m;
+                            p[1].X = k;
+                            p[2].X = l;
+
+                            num ++;
+                        }
+                        else if (m < minvalue[2])
+                        {
+                            minvalue[2] = m;
+                            p[2].X = k;
+                            p[2].Y = l;
+
+                            num ++;
+                        }
+                    }
+                }
+
+                num = Math.Min(num, 3);
+
+                double fb = 0;
+                double fg = 0;
+                double fr = 0;
+                double bb = 0;
+                double bg = 0;
+                double br = 0;
+                double sf = 0;
+                double sb = 0;
+
+                for (int k = 0; k < num; ++k)
+                {
+                    int i = unKnowIndex[(int)p[k].X,(int)p[k].Y];
+                    fb += scalarTuples[i].fore.Val[0];
+                    fg += scalarTuples[i].fore.Val[1];
+                    fr += scalarTuples[i].fore.Val[2];
+                    bb += scalarTuples[i].back.Val[0];
+                    bg += scalarTuples[i].back.Val[1];
+                    br += scalarTuples[i].back.Val[2];
+                    sf += scalarTuples[i].SigmaFore;
+                    sb += scalarTuples[i].SigmaBack;
+                }
+
+                fb /= (num + 1e-10);
+                fg /= (num + 1e-10);
+                fr /= (num + 1e-10);
+                bb /= (num + 1e-10);
+                bg /= (num + 1e-10);
+                br /= (num + 1e-10);
+                sf /= (num + 1e-10);
+                sb /= (num + 1e-10);
+
+                Scalar fc = new Scalar(fb, fg, fr);
+                Scalar bc = new Scalar(bb, bg, br);
+
+                Scalar pc = new Scalar(Image.Get(xi, yj));//LOAD_RGB_SCALAR(data, xi * step + yj * channels);
+
+                double df = GetColorDistance(pc, fc);
+                double db = GetColorDistance(pc, bc);
+                Scalar tf = fc;
+                Scalar tb = bc;
+
+                int idx = xi * width + yj;
+                if (df < sf)
+                {
+                    fc = pc;
+                }
+                if (db < sb)
+                {
+                    bc = pc;
+                }
+                if (fc.Val[0] == bc.Val[0] && fc.Val[1] == bc.Val[1] && fc.Val[2] == bc.Val[2])
+                {
+                    fTuples[idx].confidence = 0.00000001;
+                }
+                else
+                {
+                    fTuples[idx].confidence = Math.Exp(-10 * ChromaticDistortion(xi, yj, tf, tb));
+                }
+
+
+                fTuples[idx].fore = fc;
+                fTuples[idx].back = bc;
+
+                fTuples[idx].alhpa = Math.Max(0.0, Math.Min(1.0, comalpha(pc, fc, bc)));
+            }
+
+            scalarTuples.Clear();
         }
 
         private void LocalSmooth()
         {
-            
+            double sig2 = 100.0 / (9 * 3.1415926);
+            double m = 3 * Math.Sqrt(sig2);
+
+            foreach (var point in unknowSet)
+            {
+                int xi = (int) point.X;
+                int yj = (int) point.Y;
+
+                int i1 = Math.Max(0, (int)(xi - m));
+                int i2 = Math.Min((int)(xi + m), height - 1);
+                int j1 = Math.Max(0, (int)(yj - m));
+                int j2 = Math.Max((int)(yj + m), width - 1);
+
+                int indexp = xi * width + yj;
+                FTuple ptuple = fTuples[indexp];
+
+                Scalar wcfsumup = new Scalar(0);
+                Scalar wcbsumup = new Scalar(0);
+                double wcfsumdown = 0;
+                double wcbsumdown = 0;
+                double wfbsumup = 0;
+                double wfbsundown = 0;
+                double wasumup = 0;
+                double wasumdown = 0;
+
+                for (int k = i1; k <= i2; ++k)
+                {
+                    for (int l = j1; l <= j2; ++l)
+                    {
+                        int indexq = k * width + l;
+                        FTuple qtuple = fTuples[indexq];
+
+                        double d = GetPixelDistance(new Point(xi, yj), new Point(k, l));
+
+                        if (d > m)
+                        {
+                            continue;
+                        }
+
+                        double wc;
+                        if (d == 0)
+                        {
+                            wc = Math.Exp(-(d * d) / sig2) * qtuple.confidence;
+                        }
+                        else
+                        {
+                            wc = Math.Exp(-(d * d) / sig2) * qtuple.confidence * Math.Abs(qtuple.alhpa - ptuple.alhpa);
+                        }
+                        wcfsumdown += wc * qtuple.alhpa;
+                        wcbsumdown += wc * (1 - qtuple.alhpa);
+
+                        wcfsumup.Val[0] += wc * qtuple.alhpa * qtuple.fore.Val[0];
+                        wcfsumup.Val[1] += wc * qtuple.alhpa * qtuple.fore.Val[1];
+                        wcfsumup.Val[2] += wc * qtuple.alhpa * qtuple.fore.Val[2];
+
+                        wcbsumup.Val[0] += wc * (1 - qtuple.alhpa) * qtuple.back.Val[0];
+                        wcbsumup.Val[1] += wc * (1 - qtuple.alhpa) * qtuple.back.Val[1];
+                        wcbsumup.Val[2] += wc * (1 - qtuple.alhpa) * qtuple.back.Val[2];
+
+
+                        double wfb = qtuple.confidence * qtuple.alhpa * (1 - qtuple.alhpa);
+                        wfbsundown += wfb;
+                        wfbsumup += wfb * Math.Sqrt(GetColorDistance(qtuple.fore, qtuple.back));
+
+                        double delta = 0;
+                        double wa;
+                        if (trimapData[k,l] == 0 || trimapData[k,l] == 255)
+                        {
+                            delta = 1;
+                        }
+                        wa = qtuple.confidence * Math.Exp(-(d * d) / sig2) + delta;
+                        wasumdown += wa;
+                        wasumup += wa * qtuple.alhpa;
+                    }
+                }
+
+                Scalar cp = new Scalar(Image.Get(xi, yj));
+                Scalar fp = new Scalar(0);
+                Scalar bp = new Scalar(0);
+
+                double dfb;
+                double conp;
+                double alp;
+
+                bp.Val[0] = Math.Min(255.0, Math.Max(0.0, wcbsumup.Val[0] / (wcbsumdown + 1e-200)));
+                bp.Val[1] = Math.Min(255.0, Math.Max(0.0, wcbsumup.Val[1] / (wcbsumdown + 1e-200)));
+                bp.Val[2] = Math.Min(255.0, Math.Max(0.0, wcbsumup.Val[2] / (wcbsumdown + 1e-200)));
+
+                fp.Val[0] = Math.Min(255.0, Math.Max(0.0, wcfsumup.Val[0] / (wcfsumdown + 1e-200)));
+                fp.Val[1] = Math.Min(255.0, Math.Max(0.0, wcfsumup.Val[1] / (wcfsumdown + 1e-200)));
+                fp.Val[2] = Math.Min(255.0, Math.Max(0.0, wcfsumup.Val[2] / (wcfsumdown + 1e-200)));
+
+                //double tempalpha = comalpha(cp, fp, bp);
+                dfb = wfbsumup / (wfbsundown + 1e-200);
+
+                conp = Math.Min(1.0, Math.Sqrt(GetColorDistance(fp, bp)) / dfb) * Math.Exp(-10 * ChromaticDistortion(xi, yj, fp, bp));
+                alp = wasumup / (wasumdown + 1e-200);
+
+                double alpha_t = conp * comalpha(cp, fp, bp) + (1 - conp) * Math.Max(0.0, Math.Min(alp, 1.0));
+
+                alpha[xi,yj] = (int)(alpha_t * 255);
+            }
+            fTuples = null;
         }
 
         private void GetMatte()
         {
-            
+            int h = matte.Rows();
+            int w = matte.Cols();
+            var s = matte.Step1();
+
+            for (int i = 0; i < h; ++i)
+            {
+                for (int j = 0; j < w; ++j)
+                {
+                    matte.Put(i, j, alpha[i, j]);
+                }
+            }
         }
 
         private bool IsBackground(int target)
@@ -590,8 +867,6 @@ namespace OpenCV.SDKDemo.IdPhoto
                 foregroundSamples.Add(foregroundPoints);
                 backgroundSamples.Add(backgroundPoints);
             }
-
-            return;
         }
     }
 }

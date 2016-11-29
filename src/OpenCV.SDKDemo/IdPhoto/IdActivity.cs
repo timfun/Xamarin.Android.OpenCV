@@ -24,11 +24,21 @@ namespace OpenCV.SDKDemo.IdPhoto
     public class IdActivity : Activity
     {
         private IMenuItem _itemPickPhoto;
-        //private IMenuItem _itemStartNewGame;
-        public  const string Tag = "IdActivity";
+        private IMenuItem _itemGray;
+        private IMenuItem _itemThreshold;
+        private IMenuItem _itemFindContours;
+        private IMenuItem _itemCreateTrimap;
+        private IMenuItem _itemSharedMatting;
 
-        private Mat _frame;
-        private Mat _back;
+        public  const string Tag = "IdActivity";
+        private ImageView _imageView;
+        private Bitmap _image;
+
+        private Mat _raw;           // 原图
+        private Mat _gray;          // 灰度图
+        private Mat _threshold;     // 二值图
+        private Mat _trimap;        // 三元图
+        private Mat _back;      
         private Mat _fore;
 
         private Callback mLoaderCallback;
@@ -40,13 +50,20 @@ namespace OpenCV.SDKDemo.IdPhoto
             // Create your application here
             Log.Debug(Tag, "Creating and setting view");
             SetContentView(Resource.Layout.IdPhoto);
-            mLoaderCallback = new Callback(this);
 
+            _imageView = FindViewById<ImageView>(Resource.Id.photo);
+
+            mLoaderCallback = new Callback(this);
         }
 
         public override bool OnCreateOptionsMenu(IMenu menu)
         {
             _itemPickPhoto = menu.Add("choose photo");
+            _itemGray = menu.Add("Gray");
+            _itemThreshold = menu.Add("Threshold");
+            _itemFindContours = menu.Add("FindContours");
+            _itemCreateTrimap = menu.Add("CreateTrimap");
+            _itemSharedMatting = menu.Add("SharedMatting");
 
             return base.OnCreateOptionsMenu(menu);
         }
@@ -72,65 +89,45 @@ namespace OpenCV.SDKDemo.IdPhoto
 
             if (item == _itemPickPhoto)
             {
-                var file = "/sdcard/dcim/Camera/IMG_20161125_222542-1-1.jpg";
+                var file = "/sdcard/dcim/Camera/id.jpg";
+ 
+                _image = BitmapFactory.DecodeFile(file);
+                _raw = new Mat(_image.Width, _image.Height, CvType.Cv8uc1);
+                OpenCV.Android.Utils.BitmapToMat(_image, _raw);
 
-                var photoImage = FindViewById<ImageView>(Resource.Id.photo);
-                var image = BitmapFactory.DecodeFile(file);
-                photoImage.SetImageBitmap(image);
+                _imageView.SetImageBitmap(_image);
+            }
+            else if (item == _itemGray)
+            {
+                // 灰度图
+                _gray = new Mat(_raw.Width(), _raw.Height(), CvType.Cv8uc1);
+                Imgproc.CvtColor(_raw, _gray, Imgproc.ColorRgb2gray);
 
-                var w = image.Width;
-                var h = image.Height;
+                ShowImage(_gray);
+            }
+            else if (item == _itemThreshold)
+            {
+                // 二值化
+                _threshold = new Mat(_image.Width, _image.Height, CvType.Cv8uc1);
+                Imgproc.Threshold(_gray, _threshold, 178, 255, Imgproc.ThreshBinary);
 
-                _frame = new Mat(image.Width, image.Height, CvType.Cv8uc1);
-                var gray = new Mat(image.Width, image.Height, CvType.Cv8uc1);
-                _fore = new Mat(image.Width, image.Height, CvType.Cv8uc1);
-
-                OpenCV.Android.Utils.BitmapToMat(image, _frame);
-                Imgproc.CvtColor(_frame, gray, Imgproc.ColorRgb2gray);
-                //OpenCV.Android.Utils.MatToBitmap(gray, image);
-                //photoImage.SetImageBitmap(image);
-
-                var rgbaInnerWindow = new Mat(image.Width, image.Height, CvType.Cv8uc1);
-
-                //Imgproc.Canny(gray, rgbaInnerWindow, 110, 120);
-
-                //Imgproc.Threshold(gray, rgbaInnerWindow, 0, 255, Imgproc.ThreshOtsu | Imgproc.ThreshBinary);
-                Imgproc.Threshold(gray, rgbaInnerWindow, 168, 255,  Imgproc.ThreshBinary);
-
-                //OpenCV.Android.Utils.MatToBitmap(rgbaInnerWindow, image);
-                //photoImage.SetImageBitmap(image);
-                //return true;
-
-                //Imgproc.AdaptiveThreshold(gray, rgbaInnerWindow, 255, Imgproc.AdaptiveThreshGaussianC, Imgproc.ThreshBinary, 3, 3);
-
-                //var leftTop = new Core.Point(0, 0);
-                //var leftBottom = new Core.Point(0, h - 1);
-                //var rightTop = new Core.Point(w - 1, 0);
-                //var rightBottom = new Core.Point(w - 1, h - 1);
-
-                //var white = new Scalar(255, 255, 255);
-
-                //Imgproc.Line(rgbaInnerWindow, leftTop, leftBottom, white, 0);
-                ////Imgproc.Line(rgbaInnerWindow, leftTop, rightTop, white, 0);
-                //Imgproc.Line(rgbaInnerWindow, leftBottom, rightBottom, white, 0);
-                //Imgproc.Line(rgbaInnerWindow, rightTop, rightBottom, white, 0);
-
-
-
+                ShowImage(_threshold);
+            }
+            else if (item == _itemFindContours)
+            {
+                // 查找最大连同区域
                 IList<MatOfPoint> contours = new JavaList<MatOfPoint>();
                 Mat hierarchy = new Mat();
-                var target = rgbaInnerWindow.Clone();
+                var target = _threshold.Clone();
                 Imgproc.FindContours(target, contours, hierarchy, Imgproc.RetrExternal, Imgproc.ChainApproxNone);
 
-                //rgbaInnerWindow.
-
                 MatOfPoint max = new MatOfPoint();
-                double contour_area_temp = 0, contour_area_max = 0;
+                double contour_area_max = 0;
                 if (contours.Any())
                 {
                     foreach (var contour in contours)
                     {
-                        contour_area_temp = Math.Abs(Imgproc.ContourArea(contour));
+                        var contour_area_temp = Math.Abs(Imgproc.ContourArea(contour));
                         if (contour_area_temp > contour_area_max)
                         {
                             contour_area_max = contour_area_temp;
@@ -142,18 +139,30 @@ namespace OpenCV.SDKDemo.IdPhoto
                 var last = new JavaList<MatOfPoint>();
                 last.Add(max);
 
-                Imgproc.DrawContours(_frame, last, -1, new Scalar(255, 0, 0), -1);
+                Imgproc.DrawContours(_raw, last, -1, new Scalar(255, 0, 0), -1);
 
-                OpenCV.Android.Utils.MatToBitmap(_frame, image);
-                photoImage.SetImageBitmap(image);
+                ShowImage(_raw);
+            }
+            else if (item == _itemCreateTrimap)
+            {
+                // 生成三元图
 
             }
-            //else if (item == _itemHideNumbers)
+            else if(item == _itemSharedMatting)
+            {
+                // 扣图
+            }
             //{
             //    _puzzle15.ToggleTileNumbers();
             //}
 
             return base.OnOptionsItemSelected(item);
+        }
+
+        private void ShowImage(Mat mat)
+        {
+            Android.Utils.MatToBitmap(mat, _image);
+            _imageView.SetImageBitmap(_image);
         }
     }
 
